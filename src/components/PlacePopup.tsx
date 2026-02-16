@@ -13,6 +13,7 @@ export default function PlacePopup() {
   const setCurrentChannel = useRadioStore((s) => s.setCurrentChannel);
   const setStreamUrl = useRadioStore((s) => s.setStreamUrl);
   const setIsPlaying = useRadioStore((s) => s.setIsPlaying);
+  const setUserHasInteracted = useRadioStore((s) => s.setUserHasInteracted);
   const setSelectedPlace = useRadioStore((s) => s.setSelectedPlace);
   const setSidebarOpen = useRadioStore((s) => s.setSidebarOpen);
 
@@ -75,6 +76,7 @@ export default function PlacePopup() {
     if (!url) return;
     const channelId = extractChannelId(url);
     if (!channelId) return;
+    setUserHasInteracted(true);
 
     try {
       const res = await fetch(`/api/channel/${channelId}`);

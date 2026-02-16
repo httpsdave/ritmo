@@ -9,9 +9,52 @@ import {
   Volume2,
   VolumeX,
   Heart,
+  Clock,
 } from "lucide-react";
 import { useRadioStore } from "@/lib/store";
-import { extractChannelId } from "@/lib/utils";
+import { extractChannelId, getTimezoneFromCoords } from "@/lib/utils";
+
+function LocalTime({ placeId }: { placeId: string }) {
+  const places = useRadioStore((s) => s.places);
+  const [time, setTime] = useState("");
+
+  useEffect(() => {
+    const place = places.find((p) => p.id === placeId);
+    if (!place) return;
+
+    const [lng, lat] = place.geo;
+    const timezone = getTimezoneFromCoords(lat, lng);
+
+    const updateTime = () => {
+      try {
+        const now = new Date();
+        const localTime = now.toLocaleTimeString("en-US", {
+          timeZone: timezone,
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+        setTime(localTime);
+      } catch {
+        setTime("");
+      }
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 10000); // Update every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [placeId, places]);
+
+  if (!time) return null;
+
+  return (
+    <div className="flex items-center gap-1 text-xs text-zinc-500">
+      <Clock size={12} />
+      <span>{time}</span>
+    </div>
+  );
+}
 
 export default function Player() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -219,9 +262,47 @@ export default function Player() {
   if (!currentChannel) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-      <div className="bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-800/50">
-        <div className="flex items-center gap-3 px-4 sm:px-6 py-3 max-w-screen-lg mx-auto" style={{ height: 'var(--player-height)' }}>
+    <div
+      className="fixed z-50 left-0 right-0 bottom-0 lg:left-6 lg:right-auto lg:bottom-6 lg:w-[420px] lg:rounded-2xl lg:shadow-2xl"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
+      <div className="bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-800/50 lg:border lg:rounded-2xl lg:border-zinc-700/50">
+        {/* Station info row — visible on desktop, integrated on mobile */}
+        <div className="hidden lg:flex items-center gap-3 px-5 pt-4 pb-1">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-emerald-400 truncate leading-snug">
+              {currentChannel.title}
+            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-zinc-500 truncate leading-snug">
+                {currentChannel.place?.title}
+                {currentChannel.country?.title
+                  ? ` · ${currentChannel.country.title}`
+                  : ""}
+              </p>
+              {currentChannel.place?.id && (
+                <LocalTime placeId={currentChannel.place.id} />
+              )}
+            </div>
+          </div>
+          <button
+            onClick={toggleFavorite}
+            className="shrink-0 p-1.5 transition-colors"
+            aria-label={isFav ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Heart
+              size={16}
+              className={
+                isFav
+                  ? "text-emerald-400 fill-emerald-400"
+                  : "text-zinc-500 hover:text-emerald-400"
+              }
+            />
+          </button>
+        </div>
+
+        {/* Controls row */}
+        <div className="flex items-center gap-3 px-4 sm:px-6 lg:px-5 py-3 max-w-screen-lg mx-auto" style={{ height: 'var(--player-height)' }}>
           {/* Previous station */}
           <button
             onClick={() => skipStation(-1)}
@@ -258,21 +339,26 @@ export default function Player() {
             <SkipForward size={18} />
           </button>
 
-          {/* Station info */}
-          <div className="flex-1 min-w-0">
+          {/* Station info — mobile only */}
+          <div className="flex-1 min-w-0 lg:hidden">
             <p className="text-sm font-medium text-emerald-400 truncate leading-snug">
               {currentChannel.title}
             </p>
-            <p className="text-xs text-zinc-500 truncate leading-snug mt-0.5">
-              {currentChannel.place?.title}
-              {currentChannel.country?.title
-                ? ` · ${currentChannel.country.title}`
-                : ""}
-            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-zinc-500 truncate leading-snug">
+                {currentChannel.place?.title}
+                {currentChannel.country?.title
+                  ? ` · ${currentChannel.country.title}`
+                  : ""}
+              </p>
+              {currentChannel.place?.id && (
+                <LocalTime placeId={currentChannel.place.id} />
+              )}
+            </div>
           </div>
 
-          {/* Volume (hidden on small screens) */}
-          <div className="hidden sm:flex items-center gap-2">
+          {/* Volume slider — desktop: fills remaining space */}
+          <div className="hidden sm:flex items-center gap-2 lg:flex-1">
             <input
               type="range"
               min="0"
@@ -280,7 +366,7 @@ export default function Player() {
               step="0.01"
               value={volume}
               onChange={(e) => setVolume(parseFloat(e.target.value))}
-              className="w-24 lg:w-32 accent-emerald-500 h-1"
+              className="w-24 lg:flex-1 accent-emerald-500 h-1"
             />
             <button
               onClick={toggleMute}
@@ -291,10 +377,10 @@ export default function Player() {
             </button>
           </div>
 
-          {/* Favorite */}
+          {/* Favorite — mobile only */}
           <button
             onClick={toggleFavorite}
-            className="shrink-0 p-2 transition-colors"
+            className="shrink-0 p-2 transition-colors lg:hidden"
             aria-label={isFav ? "Remove from favorites" : "Add to favorites"}
           >
             <Heart

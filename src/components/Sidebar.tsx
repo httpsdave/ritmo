@@ -17,6 +17,7 @@ export default function Sidebar() {
   const setCurrentChannel = useRadioStore((s) => s.setCurrentChannel);
   const setStreamUrl = useRadioStore((s) => s.setStreamUrl);
   const setIsPlaying = useRadioStore((s) => s.setIsPlaying);
+  const setUserHasInteracted = useRadioStore((s) => s.setUserHasInteracted);
   const currentChannel = useRadioStore((s) => s.currentChannel);
   const favorites = useRadioStore((s) => s.favorites);
   const addFavorite = useRadioStore((s) => s.addFavorite);
@@ -75,6 +76,7 @@ export default function Sidebar() {
       if (!url) return;
       const channelId = extractChannelId(url);
       if (!channelId) return;
+      setUserHasInteracted(true);
       try {
         const channelRes = await fetch(`/api/channel/${channelId}`);
         const channelData = await channelRes.json();
@@ -88,7 +90,7 @@ export default function Sidebar() {
         // Silently fail
       }
     },
-    [setCurrentChannel, setStreamUrl, setIsPlaying]
+    [setCurrentChannel, setStreamUrl, setIsPlaying, setUserHasInteracted]
   );
 
   return (

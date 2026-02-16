@@ -18,6 +18,7 @@ export default function SearchPanel() {
   const setCurrentChannel = useRadioStore((s) => s.setCurrentChannel);
   const setStreamUrl = useRadioStore((s) => s.setStreamUrl);
   const setIsPlaying = useRadioStore((s) => s.setIsPlaying);
+  const setUserHasInteracted = useRadioStore((s) => s.setUserHasInteracted);
   const setGlobeTarget = useRadioStore((s) => s.setGlobeTarget);
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -71,6 +72,7 @@ export default function SearchPanel() {
       const url = getResultUrl(result);
       const channelId = extractChannelId(url);
       if (!channelId) return;
+      setUserHasInteracted(true);
       try {
         const channelRes = await fetch(`/api/channel/${channelId}`);
         const channelData = await channelRes.json();
@@ -105,6 +107,7 @@ export default function SearchPanel() {
       setSelectedPlace,
       setSidebarOpen,
       setSearchOpen,
+      setUserHasInteracted,
     ]
   );
 

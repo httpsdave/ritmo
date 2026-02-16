@@ -23,7 +23,9 @@ export default function SettingsPanel() {
         onClick={() => setActiveTab("explore")}
       />
       <div
-        className="fixed left-0 right-0 z-35 flex flex-col bg-zinc-900 border-t border-zinc-700/50 rounded-t-2xl shadow-2xl pointer-events-auto"
+        data-panel="sheet"
+        data-playing={currentChannel ? "true" : "false"}
+        className="fixed left-0 right-0 z-35 flex flex-col bg-zinc-900 border-t border-zinc-700/50 rounded-t-2xl shadow-2xl pointer-events-auto lg:right-auto lg:left-6 lg:w-[420px] lg:rounded-2xl lg:border lg:border-zinc-700/50"
         style={{ bottom: sheetBottom, maxHeight: "60vh" }}
       >
         <div className="shrink-0">

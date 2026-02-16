@@ -260,12 +260,13 @@ const LOCK_EXIT_RADIUS = CROSSHAIR_RADIUS_PX * 2.8; // px to break lock — much
 
 function CrosshairDetector({ places, groupRef }: { places: Place[]; groupRef: React.RefObject<THREE.Group | null> }) {
   const { camera, gl } = useThree();
-  const setGlobeTarget = useRadioStore((s) => s.setGlobeTarget);
   const setCrosshairLocked = useRadioStore((s) => s.setCrosshairLocked);
   const setCrosshairLoading = useRadioStore((s) => s.setCrosshairLoading);
   const setCurrentChannel = useRadioStore((s) => s.setCurrentChannel);
   const setStreamUrl = useRadioStore((s) => s.setStreamUrl);
   const setIsPlaying = useRadioStore((s) => s.setIsPlaying);
+  const userHasInteracted = useRadioStore((s) => s.userHasInteracted);
+  const stationLocked = useRadioStore((s) => s.stationLocked);
 
   const lockedPlaceRef = useRef<string | null>(null);
   const playingFromCrosshairRef = useRef(false);
@@ -274,6 +275,10 @@ function CrosshairDetector({ places, groupRef }: { places: Place[]; groupRef: Re
 
   useFrame(() => {
     if (places.length === 0) return;
+    // Don't auto-lock/play until user has interacted with the site
+    if (!userHasInteracted) return;
+    // Don't change station when locked
+    if (stationLocked) return;
 
     // Throttle: check every ~6 frames
     cooldownRef.current++;
@@ -344,8 +349,6 @@ function CrosshairDetector({ places, groupRef }: { places: Place[]; groupRef: Re
       lockedPlaceRef.current = closestPlace.id;
       setCrosshairLocked(true, closestPlace.id);
       setCrosshairLoading(true);
-      // Lock the signal into the center of the crosshair
-      setGlobeTarget({ lat: closestPlace.geo[1], lng: closestPlace.geo[0] });
 
       // Auto-play the first station of this place
       playingFromCrosshairRef.current = true;
@@ -387,6 +390,25 @@ function CrosshairDetector({ places, groupRef }: { places: Place[]; groupRef: Re
   return null;
 }
 
+/* ── Zoom handler that responds to button clicks ── */
+function ZoomHandler() {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    const handleZoom = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      const direction = detail === "in" ? -0.5 : 0.5;
+      const currentDist = camera.position.length();
+      const newDist = Math.max(2.8, Math.min(10, currentDist + direction));
+      camera.position.normalize().multiplyScalar(newDist);
+    };
+    window.addEventListener("ritmo-zoom", handleZoom);
+    return () => window.removeEventListener("ritmo-zoom", handleZoom);
+  }, [camera]);
+
+  return null;
+}
+
 /* ── Scene contents (wrapped in Suspense) ── */
 function SceneContents({ places }: { places: Place[] }) {
   const groupRef = useRef<THREE.Group>(null);
@@ -404,6 +426,7 @@ function SceneContents({ places }: { places: Place[] }) {
 
       <AutoRotate groupRef={groupRef} />
       <CrosshairDetector places={places} groupRef={groupRef} />
+      <ZoomHandler />
 
       <group ref={groupRef}>
         <Earth />
@@ -481,6 +504,7 @@ function LocateButton() {
   const setCurrentChannel = useRadioStore((s) => s.setCurrentChannel);
   const setStreamUrl = useRadioStore((s) => s.setStreamUrl);
   const setIsPlaying = useRadioStore((s) => s.setIsPlaying);
+  const setUserHasInteracted = useRadioStore((s) => s.setUserHasInteracted);
   const [locating, setLocating] = useState(false);
 
   // Find the nearest loaded place to a lat/lng
@@ -561,6 +585,7 @@ function LocateButton() {
 
   const handleLocate = useCallback(async () => {
     setLocating(true);
+    setUserHasInteracted(true);
 
     const ipFallback = async () => {
       try {
@@ -589,16 +614,12 @@ function LocateButton() {
     } else {
       ipFallback();
     }
-  }, [navigateTo]);
+  }, [navigateTo, setUserHasInteracted]);
 
   return (
     <button
       onClick={handleLocate}
-      className="fixed z-20 w-10 h-10 rounded-full bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/50 flex items-center justify-center hover:bg-zinc-800 transition-colors group"
-      style={{
-        right: '16px',
-        bottom: 'calc(var(--nav-height) + var(--player-height) + env(safe-area-inset-bottom, 0px) + 16px)',
-      }}
+      className="w-10 h-10 rounded-full bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/50 flex items-center justify-center hover:bg-zinc-800 transition-colors group pointer-events-auto"
       aria-label="Go to my location"
       title="Go to my location"
     >
@@ -611,6 +632,171 @@ function LocateButton() {
         </svg>
       )}
     </button>
+  );
+}
+
+/* ── Zoom Controls ── */
+function ZoomControls() {
+  return null; // Zoom is handled via GlobeControls
+}
+
+/* ── Right-side control buttons ── */
+function ControlButtons() {
+  const currentChannel = useRadioStore((s) => s.currentChannel);
+  const stationLocked = useRadioStore((s) => s.stationLocked);
+  const setStationLocked = useRadioStore((s) => s.setStationLocked);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const shareRef = useRef<HTMLDivElement>(null);
+
+  // Close share menu on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (shareRef.current && !shareRef.current.contains(e.target as Node)) {
+        setShowShareMenu(false);
+      }
+    };
+    if (showShareMenu) {
+      document.addEventListener("click", handleClick);
+    }
+    return () => document.removeEventListener("click", handleClick);
+  }, [showShareMenu]);
+
+  const handleShare = async (type: "station" | "app") => {
+    let url = window.location.origin;
+    let text = "Check out Ritmo — discover radio stations from around the world!";
+
+    if (type === "station" && currentChannel) {
+      url = `https://radio.garden/listen/${currentChannel.id}`;
+      text = `Listen to ${currentChannel.title} on Radio Garden`;
+    }
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Ritmo", text, url });
+      } catch {
+        // user cancelled
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+    setShowShareMenu(false);
+  };
+
+  return (
+    <div
+      className="fixed z-20 flex flex-col gap-2 items-center pointer-events-none"
+      style={{
+        right: '16px',
+        bottom: 'calc(var(--nav-height) + var(--player-height) + env(safe-area-inset-bottom, 0px) + 16px)',
+      }}
+    >
+      {/* Share button */}
+      <div className="relative pointer-events-auto" ref={shareRef}>
+        {showShareMenu && (
+          <div className="absolute right-12 bottom-0 bg-zinc-900/95 backdrop-blur-sm border border-zinc-700/50 rounded-xl shadow-2xl overflow-hidden min-w-[200px] animate-in fade-in">
+            <button
+              onClick={() => handleShare("station")}
+              disabled={!currentChannel}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-800/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400 shrink-0">
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              <span className="text-sm text-zinc-200">Share current station</span>
+            </button>
+            <button
+              onClick={() => handleShare("app")}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-800/60 transition-colors border-t border-zinc-800/50"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400 shrink-0">
+                <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+              <span className="text-sm text-zinc-200">Share Radio Garden</span>
+            </button>
+            {copied && (
+              <div className="px-4 py-2 text-xs text-emerald-400 border-t border-zinc-800/50 text-center">
+                Link copied to clipboard!
+              </div>
+            )}
+          </div>
+        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowShareMenu(!showShareMenu);
+          }}
+          className="w-10 h-10 rounded-full bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/50 flex items-center justify-center hover:bg-zinc-800 transition-colors group"
+          aria-label="Share"
+          title="Share"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-300 group-hover:text-emerald-400 transition-colors">
+            <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Lock station button */}
+      <button
+        onClick={() => setStationLocked(!stationLocked)}
+        className={`w-10 h-10 rounded-full backdrop-blur-sm border flex items-center justify-center transition-all duration-300 group pointer-events-auto ${
+          stationLocked
+            ? "bg-emerald-500/20 border-emerald-500/50 hover:bg-emerald-500/30"
+            : "bg-zinc-900/80 border-zinc-700/50 hover:bg-zinc-800"
+        }`}
+        aria-label={stationLocked ? "Unlock station" : "Lock station"}
+        title={stationLocked ? "Unlock station" : "Lock station"}
+      >
+        {stationLocked ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400 transition-transform duration-300 scale-110">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-300 group-hover:text-emerald-400 transition-all duration-300">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+          </svg>
+        )}
+      </button>
+
+      {/* Zoom in */}
+      <button
+        onClick={() => {
+          // Dispatch a custom event that OrbitControls can pick up
+          window.dispatchEvent(new CustomEvent("ritmo-zoom", { detail: "in" }));
+        }}
+        className="w-10 h-10 rounded-full bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/50 flex items-center justify-center hover:bg-zinc-800 transition-colors group pointer-events-auto"
+        aria-label="Zoom in"
+        title="Zoom in"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-300 group-hover:text-emerald-400 transition-colors">
+          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </button>
+
+      {/* Zoom out */}
+      <button
+        onClick={() => {
+          window.dispatchEvent(new CustomEvent("ritmo-zoom", { detail: "out" }));
+        }}
+        className="w-10 h-10 rounded-full bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/50 flex items-center justify-center hover:bg-zinc-800 transition-colors group pointer-events-auto"
+        aria-label="Zoom out"
+        title="Zoom out"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-300 group-hover:text-emerald-400 transition-colors">
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </button>
+
+      {/* Locate me */}
+      <LocateButton />
+    </div>
   );
 }
 
@@ -636,9 +822,9 @@ export default function Globe() {
   return (
     <>
       <Crosshair />
-      <LocateButton />
+      <ControlButtons />
       <Canvas
-        camera={{ position: [0, 0, 5], fov: 45 }}
+        camera={{ position: [0, 0.5, 5], fov: 45 }}
         gl={{ antialias: true, alpha: false }}
         style={{ background: "#000000" }}
       >

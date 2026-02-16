@@ -10,6 +10,7 @@ import PlacePopup from "@/components/PlacePopup";
 import FavoritesPanel from "@/components/FavoritesPanel";
 import SettingsPanel from "@/components/SettingsPanel";
 import BrowsePanel from "@/components/BrowsePanel";
+import WelcomeModal from "@/components/WelcomeModal";
 import { useRadioStore } from "@/lib/store";
 
 const Globe = dynamic(() => import("@/components/Globe"), {
@@ -72,6 +73,7 @@ export default function AppShell() {
       <SearchPanel />
       <BottomNav />
       <Player />
+      <WelcomeModal />
     </div>
   );
 }

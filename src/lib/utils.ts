@@ -54,3 +54,48 @@ export function debounce<T extends (...args: unknown[]) => void>(
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
+
+/**
+ * Get approximate timezone from coordinates using Intl API.
+ * This uses a heuristic based on longitude for approximate offset.
+ */
+export function getTimezoneFromCoords(lat: number, lng: number): string {
+  // Use longitude to estimate UTC offset (roughly 15° per hour)
+  const estimatedOffset = Math.round(lng / 15);
+  
+  // Try to find an IANA timezone that matches the coordinates
+  // This is a simplified approach - a real implementation would use a timezone boundary library
+  const offsetHours = estimatedOffset >= 0 ? `+${estimatedOffset}` : `${estimatedOffset}`;
+  
+  // Get a rough timezone identifier based on offset
+  // This is approximate but works for displaying local time
+  const timezones: Record<number, string> = {
+    '-12': 'Pacific/Tarawa',
+    '-11': 'Pacific/Pago_Pago',
+    '-10': 'Pacific/Honolulu',
+    '-9': 'America/Anchorage',
+    '-8': 'America/Los_Angeles',
+    '-7': 'America/Denver',
+    '-6': 'America/Chicago',
+    '-5': 'America/New_York',
+    '-4': 'America/Caracas',
+    '-3': 'America/Sao_Paulo',
+    '-2': 'Atlantic/South_Georgia',
+    '-1': 'Atlantic/Azores',
+    '0': 'Europe/London',
+    '1': 'Europe/Paris',
+    '2': 'Europe/Athens',
+    '3': 'Europe/Moscow',
+    '4': 'Asia/Dubai',
+    '5': 'Asia/Karachi',
+    '6': 'Asia/Dhaka',
+    '7': 'Asia/Bangkok',
+    '8': 'Asia/Singapore',
+    '9': 'Asia/Tokyo',
+    '10': 'Australia/Sydney',
+    '11': 'Pacific/Noumea',
+    '12': 'Pacific/Auckland',
+  };
+  
+  return timezones[estimatedOffset] || 'UTC';
+}

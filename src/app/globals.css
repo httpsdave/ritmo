@@ -15,6 +15,22 @@
   --panel-top: calc(var(--header-height) + 8px);
   --panel-bottom: calc(var(--nav-height) + var(--safe-bottom) + 4px);
   --panel-bottom-player: calc(var(--player-height) + var(--nav-height) + var(--safe-bottom) + 4px);
+  /* Desktop floating player has extra station-info row (40px) + bottom offset (24px) + gap (14px) */
+  --desktop-player-total: calc(var(--player-height) + 40px + 24px);
+  --desktop-nav-bottom-playing: calc(var(--desktop-player-total) + 28px);
+  --desktop-nav-bottom-idle: 24px;
+  --desktop-panel-bottom-playing: calc(var(--desktop-nav-bottom-playing) + var(--nav-height) + 28px);
+  --desktop-panel-bottom-idle: calc(var(--desktop-nav-bottom-idle) + var(--nav-height) + 28px);
+}
+
+/* ── Desktop floating panel positioning ── */
+@media (min-width: 1024px) {
+  [data-panel="sheet"][data-playing="true"] {
+    bottom: var(--desktop-panel-bottom-playing) !important;
+  }
+  [data-panel="sheet"][data-playing="false"] {
+    bottom: var(--desktop-panel-bottom-idle) !important;
+  }
 }
 
 /* ── Base ── */

@@ -86,6 +86,14 @@ interface RadioState {
   // Close all panels (for mutual exclusion)
   closeAllPanels: () => void;
 
+  // User interaction (prevents auto-play until user interacts)
+  userHasInteracted: boolean;
+  setUserHasInteracted: (v: boolean) => void;
+
+  // Station lock (prevents crosshair from changing station)
+  stationLocked: boolean;
+  setStationLocked: (v: boolean) => void;
+
   // Crosshair lock-on
   crosshairLocked: boolean;
   crosshairLoading: boolean;
@@ -151,6 +159,12 @@ export const useRadioStore = create<RadioState>((set, get) => ({
 
   settingsOpen: false,
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+
+  userHasInteracted: false,
+  setUserHasInteracted: (userHasInteracted) => set({ userHasInteracted }),
+
+  stationLocked: false,
+  setStationLocked: (stationLocked) => set({ stationLocked }),
 
   crosshairLocked: false,
   crosshairLoading: false,

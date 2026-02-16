@@ -56,7 +56,12 @@ export function BottomNav() {
       label: "Explore",
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
+          {/* Signal icon ((o)) */}
+          <circle cx="12" cy="12" r="3" />
+          <path d="M8.1 15.9A5.5 5.5 0 0 1 8.1 8.1" />
+          <path d="M15.9 8.1a5.5 5.5 0 0 1 0 7.8" />
+          <path d="M5.6 18.4A9 9 0 0 1 5.6 5.6" />
+          <path d="M18.4 5.6a9 9 0 0 1 0 12.8" />
         </svg>
       ),
     },
@@ -74,8 +79,10 @@ export function BottomNav() {
       label: "Browse",
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          {/* Map icon */}
+          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+          <line x1="8" y1="2" x2="8" y2="18" />
+          <line x1="16" y1="6" x2="16" y2="22" />
         </svg>
       ),
     },
@@ -111,35 +118,75 @@ export function BottomNav() {
       setSearchOpen(true);
       return;
     }
-    setActiveTab(tab);
+    
+    // Toggle: clicking the active tab again closes it (except "explore")
+    if (activeTab === tab && tab !== "explore") {
+      setActiveTab("explore");
+    } else {
+      setActiveTab(tab);
+    }
   };
 
+  // On desktop (lg), the player is taller (has station info row ~40px) and has bottom: 24px offset
+  // Nav needs to sit above that with a gap
+
+  const mobileBottom = currentChannel
+    ? 'calc(var(--player-height) + env(safe-area-inset-bottom, 0px))'
+    : 'env(safe-area-inset-bottom, 0px)';
+
   return (
-    <nav
-      className="fixed left-0 right-0 z-40 bg-zinc-900/90 backdrop-blur-xl border-t border-zinc-800/40"
-      style={{
-        bottom: currentChannel
-          ? 'calc(var(--player-height) + env(safe-area-inset-bottom, 0px))'
-          : 'env(safe-area-inset-bottom, 0px)',
-      }}
-    >
-      <div className="flex items-center justify-around max-w-lg mx-auto" style={{ height: 'var(--nav-height)' }}>
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => handleTabClick(tab.id)}
-              className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
-                isActive ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              {tab.icon}
-              <span className="text-[10px] font-medium leading-none">{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </nav>
+    <>
+      {/* Mobile nav */}
+      <nav
+        className="fixed left-0 right-0 z-40 bg-zinc-900/90 backdrop-blur-xl border-t border-zinc-800/40 lg:hidden"
+        style={{ bottom: mobileBottom }}
+      >
+        <div className="flex items-center justify-around max-w-lg mx-auto" style={{ height: 'var(--nav-height)' }}>
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabClick(tab.id)}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
+                  isActive ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {tab.icon}
+                <span className="text-[10px] font-medium leading-none">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* Desktop floating nav */}
+      <nav
+        className="hidden lg:block fixed z-40 left-6 w-[420px] rounded-2xl shadow-2xl border border-zinc-700/50 bg-zinc-900/90 backdrop-blur-xl"
+        style={{
+          bottom: currentChannel
+            ? 'var(--desktop-nav-bottom-playing)'
+            : 'var(--desktop-nav-bottom-idle)',
+        }}
+      >
+        <div className="flex items-center justify-around" style={{ height: 'var(--nav-height)' }}>
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabClick(tab.id)}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
+                  isActive ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {tab.icon}
+                <span className="text-[10px] font-medium leading-none">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    </>
   );
 }
