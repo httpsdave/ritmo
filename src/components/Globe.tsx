@@ -716,7 +716,7 @@ function ControlButtons() {
                 <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" />
                 <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
               </svg>
-              <span className="text-sm text-zinc-200">Share Radio Garden</span>
+              <span className="text-sm text-zinc-200">Share Ritmo</span>
             </button>
             {copied && (
               <div className="px-4 py-2 text-xs text-emerald-400 border-t border-zinc-800/50 text-center">
