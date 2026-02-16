@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useMemo, useCallback, useState } from "react";
-import { Canvas, useFrame, useThree, useLoader, ThreeEvent } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, useLoader } from "@react-three/fiber";
 import { OrbitControls, Sphere, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { useRadioStore } from "@/lib/store";
@@ -9,9 +9,8 @@ import { latLngToVector3 } from "@/lib/utils";
 import type { Place } from "@/lib/types";
 
 const GLOBE_RADIUS = 2;
-const MARKER_RADIUS = 0.006;
-const HIT_RADIUS = 0.045; // Invisible larger sphere for easier clicking (bigger for mobile touch)
 const CROSSHAIR_RADIUS_PX = 40; // Matches the w-20 h-20 (80px / 2) crosshair circle
+const TAP_SCREEN_RADIUS = 30; // px radius for tap-to-select on mobile/desktop
 
 /* ── Earth sphere with real NASA texture ── */
 function Earth() {
@@ -23,7 +22,7 @@ function Earth() {
   ]);
 
   return (
-    <Sphere ref={meshRef} args={[GLOBE_RADIUS, 64, 64]}>
+    <Sphere ref={meshRef} args={[GLOBE_RADIUS, 48, 48]}>
       <meshStandardMaterial
         map={dayMap}
         bumpMap={bumpMap}
@@ -41,7 +40,7 @@ function Earth() {
 /* ── Fallback earth (dark sphere shown while texture loads) ── */
 function EarthFallback() {
   return (
-    <Sphere args={[GLOBE_RADIUS, 64, 64]}>
+    <Sphere args={[GLOBE_RADIUS, 48, 48]}>
       <meshStandardMaterial
         color="#1a2a4e"
         emissive="#0d1a3a"
@@ -52,154 +51,173 @@ function EarthFallback() {
   );
 }
 
-/* ── Grid lines on globe surface ── */
+/* ── Grid lines on globe surface (single draw call) ── */
 function GlobeGrid() {
-  const gridGroup = useMemo(() => {
-    const group = new THREE.Group();
+  const gridLine = useMemo(() => {
     const r = GLOBE_RADIUS + 0.003;
+    const allPoints: number[] = [];
+
+    // Latitude lines every 30°
+    for (let lat = -60; lat <= 60; lat += 30) {
+      for (let lng = 0; lng < 360; lng += 4) {
+        const [x1, y1, z1] = latLngToVector3(lat, lng - 180, r);
+        const [x2, y2, z2] = latLngToVector3(lat, lng - 176, r);
+        allPoints.push(x1, y1, z1, x2, y2, z2);
+      }
+    }
+
+    // Longitude lines every 30°
+    for (let lng = -180; lng < 180; lng += 30) {
+      for (let lat = -90; lat < 90; lat += 4) {
+        const [x1, y1, z1] = latLngToVector3(lat, lng, r);
+        const [x2, y2, z2] = latLngToVector3(lat + 4, lng, r);
+        allPoints.push(x1, y1, z1, x2, y2, z2);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(allPoints, 3));
     const mat = new THREE.LineBasicMaterial({
       color: "#ffffff",
       opacity: 0.07,
       transparent: true,
     });
-
-    // Latitude lines every 30°
-    for (let lat = -60; lat <= 60; lat += 30) {
-      const points: THREE.Vector3[] = [];
-      for (let lng = 0; lng <= 360; lng += 2) {
-        const [x, y, z] = latLngToVector3(lat, lng - 180, r);
-        points.push(new THREE.Vector3(x, y, z));
-      }
-      const geo = new THREE.BufferGeometry().setFromPoints(points);
-      group.add(new THREE.Line(geo, mat));
-    }
-
-    // Longitude lines every 30°
-    for (let lng = -180; lng < 180; lng += 30) {
-      const points: THREE.Vector3[] = [];
-      for (let lat = -90; lat <= 90; lat += 2) {
-        const [x, y, z] = latLngToVector3(lat, lng, r);
-        points.push(new THREE.Vector3(x, y, z));
-      }
-      const geo = new THREE.BufferGeometry().setFromPoints(points);
-      group.add(new THREE.Line(geo, mat));
-    }
-
-    return group;
+    return new THREE.LineSegments(geo, mat);
   }, []);
 
-  return <primitive object={gridGroup} />;
+  return <primitive object={gridLine} />;
 }
 
-/* ── Station markers using instanced mesh ── */
+/* ── Station markers using GPU Points (tiny green pixels, like radio.garden) ── */
 function StationMarkers({ places }: { places: Place[] }) {
-  const visibleRef = useRef<THREE.InstancedMesh>(null);
-  const hitRef = useRef<THREE.InstancedMesh>(null);
+  const pointsRef = useRef<THREE.Points>(null);
   const { camera, gl } = useThree();
   const setPopupPlace = useRadioStore((s) => s.setPopupPlace);
 
-  // Track pointer down for tap detection (mobile touch events get eaten by OrbitControls)
+  // Track pointer for tap detection
   const pointerDownRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
-  const dummy = useMemo(() => new THREE.Object3D(), []);
-  const green = useMemo(() => new THREE.Color("#22c55e"), []);
-
-  useEffect(() => {
-    if (!visibleRef.current || !hitRef.current || places.length === 0) return;
-
-    places.forEach((p, i) => {
+  // Pre-compute positions buffer once
+  const positions = useMemo(() => {
+    if (places.length === 0) return new Float32Array(0);
+    const arr = new Float32Array(places.length * 3);
+    for (let i = 0; i < places.length; i++) {
       const [x, y, z] = latLngToVector3(
-        p.geo[1],
-        p.geo[0],
+        places[i].geo[1],
+        places[i].geo[0],
         GLOBE_RADIUS + 0.005
       );
-      dummy.position.set(x, y, z);
-      // Point outward from globe center
-      dummy.lookAt(dummy.position.clone().multiplyScalar(2));
-      dummy.scale.setScalar(1);
-      dummy.updateMatrix();
-
-      visibleRef.current!.setMatrixAt(i, dummy.matrix);
-      visibleRef.current!.setColorAt(i, green);
-      hitRef.current!.setMatrixAt(i, dummy.matrix);
-    });
-
-    visibleRef.current.instanceMatrix.needsUpdate = true;
-    if (visibleRef.current.instanceColor) {
-      visibleRef.current.instanceColor.needsUpdate = true;
+      arr[i * 3] = x;
+      arr[i * 3 + 1] = y;
+      arr[i * 3 + 2] = z;
     }
-    hitRef.current.instanceMatrix.needsUpdate = true;
-  }, [places, dummy, green]);
+    return arr;
+  }, [places]);
 
-  const projectToScreen = useCallback(
-    (point: THREE.Vector3) => {
-      const projected = point.clone().project(camera);
+  // Screen-space tap detection — find nearest station to tap point
+  const findNearestStation = useCallback(
+    (clientX: number, clientY: number): Place | null => {
+      if (!pointsRef.current || places.length === 0) return null;
+
       const rect = gl.domElement.getBoundingClientRect();
-      return {
-        x: ((projected.x + 1) / 2) * rect.width + rect.left,
-        y: ((-projected.y + 1) / 2) * rect.height + rect.top,
-      };
+      const groupMatrix = pointsRef.current.parent?.matrixWorld ?? new THREE.Matrix4();
+      const vec = new THREE.Vector3();
+      const camPos = camera.position;
+
+      let closestDist = TAP_SCREEN_RADIUS;
+      let closestPlace: Place | null = null;
+
+      for (let i = 0; i < places.length; i++) {
+        vec.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+        vec.applyMatrix4(groupMatrix);
+
+        // Quick back-face cull: skip markers on far side of globe
+        const dx = vec.x - camPos.x;
+        const dy = vec.y - camPos.y;
+        const dz = vec.z - camPos.z;
+        const toCenterX = -camPos.x;
+        const toCenterY = -camPos.y;
+        const toCenterZ = -camPos.z;
+        const distToMarker = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const distToCenter = Math.sqrt(toCenterX * toCenterX + toCenterY * toCenterY + toCenterZ * toCenterZ);
+        if (distToMarker > distToCenter + GLOBE_RADIUS * 0.3) continue;
+
+        // Project to screen
+        const projected = vec.clone().project(camera);
+        const screenX = ((projected.x + 1) / 2) * rect.width + rect.left;
+        const screenY = ((-projected.y + 1) / 2) * rect.height + rect.top;
+
+        const sdx = screenX - clientX;
+        const sdy = screenY - clientY;
+        const dist = Math.sqrt(sdx * sdx + sdy * sdy);
+
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestPlace = places[i];
+        }
+      }
+
+      return closestPlace;
     },
-    [camera, gl]
+    [places, positions, camera, gl]
   );
 
-  const handlePointerDown = useCallback(
-    (e: ThreeEvent<PointerEvent>) => {
+  // Listen for pointer events on the canvas element directly
+  useEffect(() => {
+    const canvas = gl.domElement;
+
+    const handlePointerDown = (e: PointerEvent) => {
       pointerDownRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
-    },
-    []
-  );
+    };
 
-  const handlePointerUp = useCallback(
-    (e: ThreeEvent<PointerEvent>) => {
+    const handlePointerUp = (e: PointerEvent) => {
       const down = pointerDownRef.current;
       pointerDownRef.current = null;
       if (!down) return;
 
-      // Check if it was a tap (not a drag): small movement + short duration
+      // Check if it was a tap (not a drag)
       const dx = e.clientX - down.x;
       const dy = e.clientY - down.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const elapsed = Date.now() - down.time;
-
-      // Allow up to 12px movement and 400ms for a tap (generous for mobile)
       if (dist > 12 || elapsed > 400) return;
 
-      const idx = e.instanceId;
-      if (idx !== undefined && places[idx]) {
-        const place = places[idx];
-        const screen = projectToScreen(e.point);
-        setPopupPlace(place, screen);
+      const place = findNearestStation(e.clientX, e.clientY);
+      if (place) {
+        const rect = canvas.getBoundingClientRect();
+        setPopupPlace(place, { x: e.clientX - rect.left + rect.left, y: e.clientY - rect.top + rect.top });
       }
-    },
-    [places, setPopupPlace, projectToScreen]
-  );
+    };
+
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointerup', handlePointerUp);
+    return () => {
+      canvas.removeEventListener('pointerdown', handlePointerDown);
+      canvas.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [gl, findNearestStation, setPopupPlace]);
 
   if (places.length === 0) return null;
 
   return (
-    <>
-      {/* Visible green dots */}
-      <instancedMesh
-        ref={visibleRef}
-        args={[undefined, undefined, places.length]}
-        raycast={() => {}} // Disable raycasting on visual mesh
-      >
-        <sphereGeometry args={[MARKER_RADIUS, 8, 8]} />
-        <meshBasicMaterial color="#22c55e" toneMapped={false} />
-      </instancedMesh>
-
-      {/* Invisible larger hit-area mesh for click/tap detection */}
-      <instancedMesh
-        ref={hitRef}
-        args={[undefined, undefined, places.length]}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-      >
-        <sphereGeometry args={[HIT_RADIUS, 6, 6]} />
-        <meshBasicMaterial visible={false} />
-      </instancedMesh>
-    </>
+    <points ref={pointsRef} frustumCulled={false}>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          args={[positions, 3]}
+          count={places.length}
+        />
+      </bufferGeometry>
+      <pointsMaterial
+        color="#22c55e"
+        size={2.5}
+        sizeAttenuation={false}
+        toneMapped={false}
+        transparent
+        opacity={0.9}
+        depthWrite={false}
+      />
+    </points>
   );
 }
 
@@ -274,46 +292,59 @@ function CrosshairDetector({ places, groupRef }: { places: Place[]; groupRef: Re
   const lockedPlaceRef = useRef<string | null>(null);
   const playingFromCrosshairRef = useRef(false);
   const cooldownRef = useRef(0);
-  const dummyVec = useMemo(() => new THREE.Vector3(), []);
+  // Reusable vectors — no allocations in the hot loop
+  const vec = useMemo(() => new THREE.Vector3(), []);
+  const camDir = useMemo(() => new THREE.Vector3(), []);
+  const toCenter = useMemo(() => new THREE.Vector3(), []);
+  const projected = useMemo(() => new THREE.Vector3(), []);
+
+  // Pre-compute positions array
+  const positionsRef = useRef<Float32Array>(new Float32Array(0));
+  useEffect(() => {
+    const arr = new Float32Array(places.length * 3);
+    for (let i = 0; i < places.length; i++) {
+      const [x, y, z] = latLngToVector3(places[i].geo[1], places[i].geo[0], GLOBE_RADIUS + 0.005);
+      arr[i * 3] = x;
+      arr[i * 3 + 1] = y;
+      arr[i * 3 + 2] = z;
+    }
+    positionsRef.current = arr;
+  }, [places]);
 
   useFrame(() => {
     if (places.length === 0) return;
-    // Don't auto-lock/play until user has interacted with the site
     if (!userHasInteracted) return;
-    // Don't change station when locked
     if (stationLocked) return;
 
-    // Throttle: check every ~6 frames
+    // Throttle: check every ~8 frames
     cooldownRef.current++;
-    if (cooldownRef.current < 6) return;
+    if (cooldownRef.current < 8) return;
     cooldownRef.current = 0;
 
     const rect = gl.domElement.getBoundingClientRect();
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
+    const pos = positionsRef.current;
 
     let closestDist = Infinity;
     let closestPlace: Place | null = null;
-
-    // Also track the currently locked place's screen distance
     let lockedPlaceScreenDist = Infinity;
 
-    // Get group world matrix for transforming marker positions
     const groupMatrix = groupRef.current ? groupRef.current.matrixWorld : new THREE.Matrix4();
+    const camPosLen = camera.position.length();
 
     for (let i = 0; i < places.length; i++) {
-      const p = places[i];
-      const [x, y, z] = latLngToVector3(p.geo[1], p.geo[0], GLOBE_RADIUS + 0.005);
-      dummyVec.set(x, y, z);
-      dummyVec.applyMatrix4(groupMatrix);
+      vec.set(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]);
+      vec.applyMatrix4(groupMatrix);
 
-      // Check if marker is on the visible side (facing camera)
-      const cameraDir = dummyVec.clone().sub(camera.position);
-      const toCenter = new THREE.Vector3(0, 0, 0).sub(camera.position);
-      if (cameraDir.length() > toCenter.length() + GLOBE_RADIUS * 0.3) continue;
+      // Quick back-face cull using squared distances (avoid sqrt)
+      camDir.subVectors(vec, camera.position);
+      const distSq = camDir.lengthSq();
+      const threshold = camPosLen + GLOBE_RADIUS * 0.3;
+      if (distSq > threshold * threshold) continue;
 
-      // Project to screen
-      const projected = dummyVec.clone().project(camera);
+      // Project to screen (reuse vector)
+      projected.copy(vec).project(camera);
       const screenX = ((projected.x + 1) / 2) * rect.width;
       const screenY = ((-projected.y + 1) / 2) * rect.height;
 
@@ -321,29 +352,25 @@ function CrosshairDetector({ places, groupRef }: { places: Place[]; groupRef: Re
       const dy = screenY - centerY;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
-      // Track locked place distance separately
-      if (lockedPlaceRef.current && p.id === lockedPlaceRef.current) {
+      if (lockedPlaceRef.current && places[i].id === lockedPlaceRef.current) {
         lockedPlaceScreenDist = dist;
       }
 
       if (dist < LOCK_ENTER_RADIUS && dist < closestDist) {
         closestDist = dist;
-        closestPlace = p;
+        closestPlace = places[i];
       }
     }
 
     // If we have a lock, keep it unless user moves far enough away
     if (lockedPlaceRef.current) {
       if (lockedPlaceScreenDist < LOCK_EXIT_RADIUS) {
-        // Still within sticky range — maintain lock
-        return; // Stay locked
+        return;
       } else {
-        // User moved away far enough — break lock
         lockedPlaceRef.current = null;
         playingFromCrosshairRef.current = false;
         setCrosshairLocked(false);
         setCrosshairLoading(false);
-        // Don't stop playback — the radio keeps playing
       }
     }
 
@@ -353,7 +380,6 @@ function CrosshairDetector({ places, groupRef }: { places: Place[]; groupRef: Re
       setCrosshairLocked(true, closestPlace.id);
       setCrosshairLoading(true);
 
-      // Auto-play the first station of this place
       playingFromCrosshairRef.current = true;
       fetch(`/api/places/${closestPlace.id}/channels`)
         .then((r) => r.json())
