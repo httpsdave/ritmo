@@ -1,26 +1,154 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --color-background: #0a0a1a;
+  --color-foreground: #ededed;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ── Layout sizing tokens ── */
+:root {
+  --player-height: 72px;
+  --nav-height: 56px;
+  --header-height: 48px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --panel-top: calc(var(--header-height) + 8px);
+  --panel-bottom: calc(var(--nav-height) + var(--safe-bottom) + 4px);
+  --panel-bottom-player: calc(var(--player-height) + var(--nav-height) + var(--safe-bottom) + 4px);
+}
+
+/* ── Base ── */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: #0a0a1a;
+  color: #ededed;
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Audio visualizer bars ── */
+@keyframes bar1 {
+  0%,
+  100% {
+    height: 4px;
+  }
+  50% {
+    height: 12px;
+  }
+}
+@keyframes bar2 {
+  0%,
+  100% {
+    height: 8px;
+  }
+  50% {
+    height: 4px;
+  }
+}
+@keyframes bar3 {
+  0%,
+  100% {
+    height: 6px;
+  }
+  50% {
+    height: 12px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.animate-bar1 {
+  animation: bar1 0.8s ease-in-out infinite;
+}
+.animate-bar2 {
+  animation: bar2 0.6s ease-in-out infinite 0.1s;
+}
+.animate-bar3 {
+  animation: bar3 0.7s ease-in-out infinite 0.2s;
+}
+
+/* ── Range input ── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  height: 4px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #22c55e;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: #22c55e;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
+
+/* ── Animate-in utilities ── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slideInFromTop {
+  from {
+    transform: translateY(-16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-in {
+  animation: slideInFromTop 0.2s ease-out;
+}
+.fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* ── Canvas ── */
+canvas {
+  touch-action: none;
+}
+
+/* ── Selection ── */
+::selection {
+  background: rgba(34, 197, 94, 0.3);
+  color: white;
 }
