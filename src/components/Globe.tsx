@@ -667,8 +667,8 @@ function ControlButtons() {
     let text = "Check out Ritmo — discover radio stations from around the world!";
 
     if (type === "station" && currentChannel) {
-      url = `https://radio.garden/listen/${currentChannel.id}`;
-      text = `Listen to ${currentChannel.title} on Radio Garden`;
+      url = `https://ritmo-blond.vercel.app/listen/${currentChannel.id}`;
+      text = `Listen to ${currentChannel.title} on Ritmo`;
     }
 
     if (navigator.share) {
