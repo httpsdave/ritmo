@@ -207,7 +207,7 @@ function StationMarkers({ places }: { places: Place[] }) {
 function Atmosphere() {
   return (
     <>
-      <Sphere args={[GLOBE_RADIUS + 0.06, 64, 64]}>
+      <Sphere args={[GLOBE_RADIUS + 0.06, 32, 32]}>
         <meshBasicMaterial
           color="#4488ff"
           transparent
@@ -215,7 +215,7 @@ function Atmosphere() {
           side={THREE.BackSide}
         />
       </Sphere>
-      <Sphere args={[GLOBE_RADIUS + 0.15, 64, 64]}>
+      <Sphere args={[GLOBE_RADIUS + 0.15, 32, 32]}>
         <meshBasicMaterial
           color="#2244aa"
           transparent
@@ -251,25 +251,6 @@ function CameraController() {
       if (camera.position.distanceTo(targetRef.current) < 0.08) {
         targetRef.current = null;
       }
-    }
-  });
-
-  return null;
-}
-
-/* ── Slow auto-rotation (stops permanently once user interacts with a station) ── */
-function AutoRotate({ groupRef }: { groupRef: React.RefObject<THREE.Group | null> }) {
-  const currentChannel = useRadioStore((s) => s.currentChannel);
-  const crosshairLocked = useRadioStore((s) => s.crosshairLocked);
-  const hasInteractedRef = useRef(false);
-
-  useFrame((_state, delta) => {
-    // Once user has interacted with any station, stop spinning permanently
-    if (currentChannel || crosshairLocked) {
-      hasInteractedRef.current = true;
-    }
-    if (groupRef.current && !hasInteractedRef.current) {
-      groupRef.current.rotation.y += delta * 0.03;
     }
   });
 
@@ -439,14 +420,11 @@ function SceneContents({ places }: { places: Place[] }) {
     <>
       <ambientLight intensity={1.8} />
       <directionalLight position={[5, 3, 5]} intensity={2.5} />
-      <directionalLight position={[-4, -2, -5]} intensity={1.2} color="#6688cc" />
-      <pointLight position={[0, 5, 0]} intensity={0.8} color="#ffffff" />
-      <pointLight position={[-5, 0, 3]} intensity={0.5} color="#8888ff" />
+      <directionalLight position={[-4, -2, -5]} intensity={1.0} color="#6688cc" />
 
       {/* Space background */}
-      <Stars radius={80} depth={60} count={4000} factor={3} saturation={0.1} fade speed={0.5} />
+      <Stars radius={80} depth={60} count={2000} factor={3} saturation={0.1} fade speed={0} />
 
-      <AutoRotate groupRef={groupRef} />
       <CrosshairDetector places={places} groupRef={groupRef} />
       <ZoomHandler />
 
@@ -847,7 +825,8 @@ export default function Globe() {
       <ControlButtons />
       <Canvas
         camera={{ position: [0, 0.5, 5], fov: 45 }}
-        gl={{ antialias: true, alpha: false }}
+        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+        dpr={[1, 1.5]}
         style={{ background: "#000000" }}
       >
         <React.Suspense
