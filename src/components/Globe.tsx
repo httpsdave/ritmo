@@ -10,7 +10,7 @@ import type { Place } from "@/lib/types";
 
 const GLOBE_RADIUS = 2;
 const MARKER_RADIUS = 0.006;
-const HIT_RADIUS = 0.028; // Invisible larger sphere for easier clicking
+const HIT_RADIUS = 0.045; // Invisible larger sphere for easier clicking (bigger for mobile touch)
 const CROSSHAIR_RADIUS_PX = 40; // Matches the w-20 h-20 (80px / 2) crosshair circle
 
 /* ── Earth sphere with real NASA texture ── */
@@ -98,6 +98,9 @@ function StationMarkers({ places }: { places: Place[] }) {
   const { camera, gl } = useThree();
   const setPopupPlace = useRadioStore((s) => s.setPopupPlace);
 
+  // Track pointer down for tap detection (mobile touch events get eaten by OrbitControls)
+  const pointerDownRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const green = useMemo(() => new THREE.Color("#22c55e"), []);
 
@@ -140,13 +143,31 @@ function StationMarkers({ places }: { places: Place[] }) {
     [camera, gl]
   );
 
-  const handleClick = useCallback(
-    (e: ThreeEvent<MouseEvent>) => {
-      e.stopPropagation();
+  const handlePointerDown = useCallback(
+    (e: ThreeEvent<PointerEvent>) => {
+      pointerDownRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+    },
+    []
+  );
+
+  const handlePointerUp = useCallback(
+    (e: ThreeEvent<PointerEvent>) => {
+      const down = pointerDownRef.current;
+      pointerDownRef.current = null;
+      if (!down) return;
+
+      // Check if it was a tap (not a drag): small movement + short duration
+      const dx = e.clientX - down.x;
+      const dy = e.clientY - down.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const elapsed = Date.now() - down.time;
+
+      // Allow up to 12px movement and 400ms for a tap (generous for mobile)
+      if (dist > 12 || elapsed > 400) return;
+
       const idx = e.instanceId;
       if (idx !== undefined && places[idx]) {
         const place = places[idx];
-        // Show popup at click position — no sidebar, no globe jump
         const screen = projectToScreen(e.point);
         setPopupPlace(place, screen);
       }
@@ -168,11 +189,12 @@ function StationMarkers({ places }: { places: Place[] }) {
         <meshBasicMaterial color="#22c55e" toneMapped={false} />
       </instancedMesh>
 
-      {/* Invisible larger hit-area mesh for click detection */}
+      {/* Invisible larger hit-area mesh for click/tap detection */}
       <instancedMesh
         ref={hitRef}
         args={[undefined, undefined, places.length]}
-        onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
       >
         <sphereGeometry args={[HIT_RADIUS, 6, 6]} />
         <meshBasicMaterial visible={false} />
