@@ -70,13 +70,9 @@ export default function WelcomeModal() {
 
         {/* Content */}
         <div className="px-8 pt-10 pb-8 text-center">
-          {/* Globe icon animation */}
-          <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-600/5 border border-emerald-500/20 flex items-center justify-center mb-6">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="2" y1="12" x2="22" y2="12" />
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-            </svg>
+          {/* Ritmo logo */}
+          <div className="mx-auto w-20 h-20 rounded-full bg-[#0a0a1a] border border-emerald-500/20 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(34,197,94,0.15)]">
+            <img src="/favicon.svg" alt="Ritmo" width={52} height={52} className="select-none" draggable={false} />
           </div>
 
           <h2 className="text-2xl font-bold text-white mb-2">

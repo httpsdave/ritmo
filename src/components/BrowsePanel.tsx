@@ -14,47 +14,16 @@ interface FeaturedStation {
   description: string;
 }
 
-// Curated list of notable stations with descriptions (like radio.garden's Musical Roots)
-const CURATED_STATIONS: FeaturedStation[] = [
+// Large pool of curated stations — a subset is shown each day, rotating daily
+const ALL_CURATED_STATIONS: FeaturedStation[] = [
+  // ── Africa ──
   {
     title: "Zanzibar Taraab",
     placeName: "Zanzibar",
     country: "Tanzania",
     placeId: "X8gdhqgK",
     description:
-      "Zanzibar is considered the original nineteenth century birthplace of taarab, a soulful music genre popular along the Swahili coast of Kenya and Tanzania. Taraab combines the many influences of Indian Ocean trade — pre-Islamic Swahili, Arabic and Indian rhythms, melodies, and poetic styles.",
-  },
-  {
-    title: "BBM FM",
-    placeName: "Yogyakarta",
-    country: "Indonesia",
-    placeId: "iR5wJW7W",
-    description:
-      "From the island that brought the world gamelan, a traditional Indonesian music ensemble, this Javanese station features gong orchestras, puppet theatre music (wayang), and many other local genres.",
-  },
-  {
-    title: "Rádio Furacão 2000",
-    placeName: "Rio de Janeiro RJ",
-    country: "Brazil",
-    placeId: "5gFwwwTb",
-    description:
-      "Furacão 2000 is a sound system and label that has been promoting baile funk, the hard-edged, heavy bass dance music of Rio de Janeiro's shantytowns, since the 1990s. Influenced by Miami bass, baile funk has become one of the most popular genres among Brazil's working classes.",
-  },
-  {
-    title: "Raï FM",
-    placeName: "Algiers",
-    country: "Algeria",
-    placeId: "TBR_GJWW",
-    description:
-      "Raï is a form of Algerian folk music that emerged in the 1920s from the port city of Oran. Blending traditional Bedouin instruments with Western electric guitars and synthesizers, raï became a voice of rebellion and social commentary across North Africa.",
-  },
-  {
-    title: "Rádio Renascença",
-    placeName: "Lisbon",
-    country: "Portugal",
-    placeId: "hSH7i_yW",
-    description:
-      "Portugal's rich musical tradition includes Fado, the melancholic urban folk music born in the streets and taverns of Lisbon. Characterized by mournful tunes and lyrics about the sea and longing, Fado is inscribed on UNESCO's Intangible Cultural Heritage list.",
+      "Zanzibar is the birthplace of taarab, a soulful genre popular along the Swahili coast. Taraab combines pre-Islamic Swahili, Arabic, and Indian rhythms, melodies, and poetic styles — a legacy of centuries of Indian Ocean trade.",
   },
   {
     title: "Radio Mali",
@@ -62,7 +31,40 @@ const CURATED_STATIONS: FeaturedStation[] = [
     country: "Mali",
     placeId: "EvMpzuvR",
     description:
-      "Bamako is the heart of West African music. From the ancient griots to modern desert blues, Mali's musical heritage spans the kora, balafon, and ngoni. Artists from this region have shaped global music with their hypnotic rhythms and storytelling traditions.",
+      "Bamako is the heart of West African music. From ancient griots to modern desert blues, Mali's heritage spans the kora, balafon, and ngoni. Artists from this region have shaped global music with hypnotic rhythms and storytelling.",
+  },
+  {
+    title: "Raï FM",
+    placeName: "Algiers",
+    country: "Algeria",
+    placeId: "TBR_GJWW",
+    description:
+      "Raï emerged in 1920s Oran, blending Bedouin instruments with electric guitars and synthesizers. It became a voice of rebellion across North Africa and a bridge between traditional Maghreb sounds and modern pop.",
+  },
+  {
+    title: "Capital FM",
+    placeName: "Nairobi",
+    country: "Kenya",
+    placeId: "1m0FMjcB",
+    description:
+      "Nairobi is the beating heart of East African pop. From benga guitar to gengetone, the city's airwaves pulse with Swahili rhythms, Sheng slang, and the energy of one of Africa's fastest-growing music scenes.",
+  },
+  {
+    title: "Radio Lomé",
+    placeName: "Lomé",
+    country: "Togo",
+    placeId: "WJIqNgGl",
+    description:
+      "Togo's capital is a melting pot of highlife, afrobeat, and traditional Ewe drumming. Radio Lomé carries the sounds of a nation where music is inseparable from daily life, ceremony, and celebration.",
+  },
+  // ── Asia ──
+  {
+    title: "BBM FM",
+    placeName: "Yogyakarta",
+    country: "Indonesia",
+    placeId: "iR5wJW7W",
+    description:
+      "From the island that gave the world gamelan, this Javanese station features gong orchestras, puppet theatre music (wayang), and the many local genres of Central Java.",
   },
   {
     title: "Mirchi",
@@ -70,7 +72,89 @@ const CURATED_STATIONS: FeaturedStation[] = [
     country: "India",
     placeId: "KNWmPKBt",
     description:
-      "Mumbai is the home of Bollywood, the world's most prolific film industry. Its radio stations blend classical ragas with contemporary Hindi pop, creating the distinctive sound that soundtracks over a billion lives across the subcontinent.",
+      "Mumbai is home to Bollywood, the world's most prolific film industry. Its stations blend classical ragas with Hindi pop, creating the sound that soundtracks over a billion lives.",
+  },
+  {
+    title: "J-Wave",
+    placeName: "Tokyo",
+    country: "Japan",
+    placeId: "gWMkRF5B",
+    description:
+      "Tokyo's J-Wave is a window into Japan's eclectic music scene — from city pop and J-rock to enka and electronic. The station captures the restless creativity of one of the world's great cultural capitals.",
+  },
+  {
+    title: "EBS FM",
+    placeName: "Seoul",
+    country: "South Korea",
+    placeId: "gN5KxjPB",
+    description:
+      "Seoul is the epicenter of K-pop, but its radio reveals far more — trot ballads, indie rock, Korean jazz, and traditional gugak. The city's musical range mirrors its blend of ancient tradition and hyper-modernity.",
+  },
+  {
+    title: "Lao National Radio",
+    placeName: "Vientiane",
+    country: "Laos",
+    placeId: "iqJmVVRB",
+    description:
+      "Vientiane's airwaves carry the gentle melodies of Lao lam — a vocal tradition accompanied by the khene (bamboo mouth organ) that has enchanted audiences in mainland Southeast Asia for centuries.",
+  },
+  // ── Americas ──
+  {
+    title: "Rádio Furacão 2000",
+    placeName: "Rio de Janeiro RJ",
+    country: "Brazil",
+    placeId: "5gFwwwTb",
+    description:
+      "Furacão 2000 has been promoting baile funk since the 1990s — the hard-edged, heavy-bass dance music of Rio's favelas. Influenced by Miami bass, it became one of Brazil's most popular working-class genres.",
+  },
+  {
+    title: "Radio Havana Cuba",
+    placeName: "Havana",
+    country: "Cuba",
+    placeId: "mfP7CLeB",
+    description:
+      "Havana is the cradle of son cubano, mambo, and salsa. The city's radio stations carry the rhythms of Afro-Cuban percussion, tres guitar, and the unmistakable brass that has influenced dance music worldwide.",
+  },
+  {
+    title: "La Mega",
+    placeName: "Bogotá",
+    country: "Colombia",
+    placeId: "RI5OM5OB",
+    description:
+      "Colombia's musical diversity is staggering — cumbia, vallenato, champeta, and reggaetón all find a home on Bogotá's airwaves. The country's rhythmic traditions draw from Indigenous, African, and Spanish roots.",
+  },
+  {
+    title: "WBGO Jazz",
+    placeName: "Newark NJ",
+    country: "United States",
+    placeId: "WNHdl7yW",
+    description:
+      "WBGO is one of America's premier jazz stations, broadcasting from the New York metro area. From bebop to avant-garde, it celebrates the art form born in New Orleans that became America's classical music.",
+  },
+  {
+    title: "Radio Buenos Aires",
+    placeName: "Buenos Aires",
+    country: "Argentina",
+    placeId: "F2DKE7GB",
+    description:
+      "Buenos Aires is the birthplace of tango — the passionate dance and music born in the port neighborhoods of La Boca and San Telmo. The bandoneón's melancholic voice still echoes through the city's milongas.",
+  },
+  {
+    title: "Fiesta FM",
+    placeName: "Mexico City",
+    country: "Mexico",
+    placeId: "lRbNHj7B",
+    description:
+      "Mexico City's sonic landscape stretches from mariachi and norteño to cumbia sonidera and modern Mexican indie. The capital's stations reflect a nation where music is woven into every fiesta and protest.",
+  },
+  // ── Europe ──
+  {
+    title: "Rádio Renascença",
+    placeName: "Lisbon",
+    country: "Portugal",
+    placeId: "hSH7i_yW",
+    description:
+      "Portugal's Fado — melancholic urban folk born in Lisbon's streets and taverns — is inscribed on UNESCO's Intangible Cultural Heritage list. Its mournful tunes speak of the sea, longing, and saudade.",
   },
   {
     title: "Rebétiko Radio",
@@ -78,9 +162,97 @@ const CURATED_STATIONS: FeaturedStation[] = [
     country: "Greece",
     placeId: "pMnXIreN",
     description:
-      "Rebétiko is the blues of Greece — urban folk music born in the working-class neighborhoods of Athens, Piraeus, and Thessaloniki. With roots in Asia Minor refugee communities, these songs of love, poverty, and the underworld are now celebrated as Greece's greatest musical contribution.",
+      "Rebétiko is the blues of Greece — urban folk born in working-class Athens, Piraeus, and Thessaloniki. Rooted in Asia Minor refugee communities, these songs of love and hardship are Greece's greatest musical gift.",
+  },
+  {
+    title: "FIP",
+    placeName: "Paris",
+    country: "France",
+    placeId: "f2qBMqOB",
+    description:
+      "FIP is legendary for its eclectic programming — jazz, world music, chanson, electronic, and classical flow seamlessly together. It captures the cosmopolitan soul of Paris in a single radio stream.",
+  },
+  {
+    title: "Flamenco Radio",
+    placeName: "Seville",
+    country: "Spain",
+    placeId: "Hp8epk7W",
+    description:
+      "Seville is the heartland of flamenco — the passionate art of cante (song), toque (guitar), and baile (dance). Born from Andalusia's Roma, Moorish, and Jewish communities, flamenco is a UNESCO masterpiece.",
+  },
+  {
+    title: "RTÉ Raidió na Gaeltachta",
+    placeName: "Galway",
+    country: "Ireland",
+    placeId: "_rB32WOB",
+    description:
+      "Ireland's Irish-language station carries sean-nós singing, uilleann pipe tunes, and the lilting melodies of traditional céilí bands from the Gaeltacht regions of the west coast.",
+  },
+  {
+    title: "Radio Romania Muzical",
+    placeName: "Bucharest",
+    country: "Romania",
+    placeId: "6mPfYhGW",
+    description:
+      "Romania's musical heritage runs from the haunting panpipes of the carpatii to lăutari fiddle music and manele. Bucharest's stations reflect a crossroads of Balkan, Ottoman, and Central European sounds.",
+  },
+  // ── Middle East & Central Asia ──
+  {
+    title: "Sawt El Ghad",
+    placeName: "Beirut",
+    country: "Lebanon",
+    placeId: "BVivb3OB",
+    description:
+      "Beirut has long been the cultural capital of the Arab world. Lebanese radio carries the legacy of Fairuz, Oum Kalthoum's influence, and a thriving underground electronic scene that bridges East and West.",
+  },
+  {
+    title: "Javan Radio",
+    placeName: "Tehran",
+    country: "Iran",
+    placeId: "WZU_Wk7B",
+    description:
+      "Iran's musical traditions span millennia — from classical Persian radif and the mystical poetry of Sufi music to modern Iranian pop. Tehran's stations carry this ancient yet evolving sonic heritage.",
+  },
+  // ── Oceania ──
+  {
+    title: "RNZ National",
+    placeName: "Wellington",
+    country: "New Zealand",
+    placeId: "GxXhFVGB",
+    description:
+      "New Zealand's national broadcaster carries Māori waiata, Pacific reggae, and the indie sounds of Aotearoa. From haka chants to Flying Nun Records, the islands punch well above their weight musically.",
+  },
+  {
+    title: "ABC Classic",
+    placeName: "Sydney NSW",
+    country: "Australia",
+    placeId: "Py_PxXGB",
+    description:
+      "Australia's premier classical station blends European concert traditions with the sounds of the world's oldest living cultures — Aboriginal didgeridoo, clapsticks, and songlines that map the continent.",
   },
 ];
+
+// Select a rotating subset of stations based on the current date
+function getDailyStations(count: number = 8): FeaturedStation[] {
+  const today = new Date();
+  // Use day-of-year as seed so it changes daily
+  const dayOfYear = Math.floor(
+    (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000
+  );
+  
+  // Seeded shuffle using day-of-year
+  const shuffled = [...ALL_CURATED_STATIONS];
+  let seed = dayOfYear * 2654435761; // hash-like multiplier
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    const j = seed % (i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  
+  return shuffled.slice(0, count);
+}
+
+const CURATED_STATIONS = getDailyStations(8);
 
 function groupByCountry(places: Place[]): Record<string, Place[]> {
   const groups: Record<string, Place[]> = {};
