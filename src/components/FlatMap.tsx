@@ -35,6 +35,7 @@ export default function FlatMap() {
   const setCurrentChannel = useRadioStore((s) => s.setCurrentChannel);
   const setStreamUrl = useRadioStore((s) => s.setStreamUrl);
   const setIsPlaying = useRadioStore((s) => s.setIsPlaying);
+  const setUserHasInteracted = useRadioStore((s) => s.setUserHasInteracted);
 
   const crosshairLocked = useRadioStore((s) => s.crosshairLocked);
   const stationLocked = useRadioStore((s) => s.stationLocked);
@@ -385,13 +386,64 @@ export default function FlatMap() {
       dragRef.current = null;
       if (!drag || drag.moved) return;
 
-      // It was a tap — show popup like globe view does
+      // It was a tap — show popup + snap crosshair to station
       const place = findNearestStation(e.clientX, e.clientY);
       if (place) {
-        setPopupPlace(place, { x: e.clientX, y: e.clientY });
+        // Popup at screen center (where station will snap to via crosshair)
+        const screenCenterX = window.innerWidth / 2;
+        const screenCenterY = window.innerHeight / 2;
+        setPopupPlace(place, { x: screenCenterX, y: screenCenterY });
+
+        // Pan the map so the tapped station is dead center of screen
+        const zoomW = mapSize.w * zoom;
+        const zoomH = mapSize.h * zoom;
+        const stationPos = latLngToXY(place.geo[1], place.geo[0], zoomW, zoomH);
+        // offset formula: drawX + stationPos.x = cw/2 => cw/2 - zoomW/2 + newOff + stationPos.x = cw/2
+        const newOffX = zoomW / 2 - stationPos.x;
+        const newOffY = zoomH / 2 - stationPos.y;
+        setOffset({ x: newOffX, y: newOffY });
+
+        // Lock crosshair + play the station
+        setUserHasInteracted(true);
+        crosshairLockedPlaceRef.current = place.id;
+        setCrosshairLocked(true, place.id);
+        setCrosshairLoading(true);
+
+        fetch(`/api/places/${place.id}/channels`)
+          .then((r) => r.json())
+          .then((data) => {
+            const content = data?.data?.content;
+            if (content && Array.isArray(content)) {
+              for (const group of content) {
+                if (group.items && Array.isArray(group.items)) {
+                  const first = group.items[0];
+                  const url = first?.page?.url ?? first?.href;
+                  if (url) {
+                    const channelId = url.split("/").pop();
+                    if (channelId) {
+                      fetch(`/api/channel/${channelId}`)
+                        .then((r) => r.json())
+                        .then((chData) => {
+                          if (chData?.data) {
+                            setCurrentChannel(chData.data);
+                            setStreamUrl(`/api/stream/${channelId}`);
+                            setIsPlaying(true);
+                            setCrosshairLoading(false);
+                          }
+                        })
+                        .catch(() => { setCrosshairLoading(false); });
+                    }
+                    return;
+                  }
+                }
+              }
+            }
+            setCrosshairLoading(false);
+          })
+          .catch(() => { setCrosshairLoading(false); });
       }
     },
-    [findNearestStation, setPopupPlace]
+    [findNearestStation, setPopupPlace, zoom, mapSize, setCrosshairLocked, setCrosshairLoading, setCurrentChannel, setStreamUrl, setIsPlaying, setUserHasInteracted]
   );
 
   // ── Wheel zoom ──

@@ -95,6 +95,13 @@ function StationMarkers({ places }: { places: Place[] }) {
   const pointsRef = useRef<THREE.Points>(null);
   const { camera, gl } = useThree();
   const setPopupPlace = useRadioStore((s) => s.setPopupPlace);
+  const setGlobeTarget = useRadioStore((s) => s.setGlobeTarget);
+  const setCrosshairLocked = useRadioStore((s) => s.setCrosshairLocked);
+  const setCrosshairLoading = useRadioStore((s) => s.setCrosshairLoading);
+  const setCurrentChannel = useRadioStore((s) => s.setCurrentChannel);
+  const setStreamUrl = useRadioStore((s) => s.setStreamUrl);
+  const setIsPlaying = useRadioStore((s) => s.setIsPlaying);
+  const setUserHasInteracted = useRadioStore((s) => s.setUserHasInteracted);
 
   // Track pointer for tap detection
   const pointerDownRef = useRef<{ x: number; y: number; time: number } | null>(null);
@@ -186,8 +193,49 @@ function StationMarkers({ places }: { places: Place[] }) {
 
       const place = findNearestStation(e.clientX, e.clientY);
       if (place) {
-        const rect = canvas.getBoundingClientRect();
-        setPopupPlace(place, { x: e.clientX - rect.left + rect.left, y: e.clientY - rect.top + rect.top });
+        // Popup at screen center (where station will snap to via crosshair)
+        const screenCenterX = window.innerWidth / 2;
+        const screenCenterY = window.innerHeight / 2;
+        setPopupPlace(place, { x: screenCenterX, y: screenCenterY });
+
+        // Snap crosshair: center globe on the station and lock + play
+        setGlobeTarget({ lat: place.geo[1], lng: place.geo[0] });
+        setUserHasInteracted(true);
+        setCrosshairLocked(true, place.id);
+        setCrosshairLoading(true);
+
+        fetch(`/api/places/${place.id}/channels`)
+          .then((r) => r.json())
+          .then((data) => {
+            const content = data?.data?.content;
+            if (content && Array.isArray(content)) {
+              for (const group of content) {
+                if (group.items && Array.isArray(group.items)) {
+                  const first = group.items[0];
+                  const url = first?.page?.url ?? first?.href;
+                  if (url) {
+                    const channelId = url.split("/").pop();
+                    if (channelId) {
+                      fetch(`/api/channel/${channelId}`)
+                        .then((r) => r.json())
+                        .then((chData) => {
+                          if (chData?.data) {
+                            setCurrentChannel(chData.data);
+                            setStreamUrl(`/api/stream/${channelId}`);
+                            setIsPlaying(true);
+                            setCrosshairLoading(false);
+                          }
+                        })
+                        .catch(() => { setCrosshairLoading(false); });
+                    }
+                    return;
+                  }
+                }
+              }
+            }
+            setCrosshairLoading(false);
+          })
+          .catch(() => { setCrosshairLoading(false); });
       }
     };
 
@@ -197,7 +245,7 @@ function StationMarkers({ places }: { places: Place[] }) {
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [gl, findNearestStation, setPopupPlace]);
+  }, [gl, findNearestStation, setPopupPlace, setGlobeTarget, setCrosshairLocked, setCrosshairLoading, setCurrentChannel, setStreamUrl, setIsPlaying, setUserHasInteracted]);
 
   if (places.length === 0) return null;
 
@@ -255,20 +303,22 @@ function CameraController() {
 
   useEffect(() => {
     if (globeTarget) {
+      // Preserve current zoom distance — just rotate to face the target lat/lng
+      const currentDist = camera.position.length();
       const [x, y, z] = latLngToVector3(
         globeTarget.lat,
         globeTarget.lng,
-        3.2
+        currentDist
       );
       targetRef.current = new THREE.Vector3(x, y, z);
     }
-  }, [globeTarget]);
+  }, [globeTarget, camera]);
 
   useFrame(() => {
     if (targetRef.current) {
       camera.position.lerp(targetRef.current, 0.06);
       camera.lookAt(0, 0, 0);
-      if (camera.position.distanceTo(targetRef.current) < 0.08) {
+      if (camera.position.distanceTo(targetRef.current) < 0.02) {
         targetRef.current = null;
       }
     }
