@@ -6,7 +6,9 @@ import { OrbitControls, Sphere, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { useRadioStore } from "@/lib/store";
 import { latLngToVector3 } from "@/lib/utils";
+import { COUNTRY_LABELS, CITY_LABELS } from "@/lib/geodata";
 import type { Place } from "@/lib/types";
+import type { GeoLabel } from "@/lib/geodata";
 
 const GLOBE_RADIUS = 2;
 const CROSSHAIR_RADIUS_PX = 40; // Matches the w-20 h-20 (80px / 2) crosshair circle
@@ -438,6 +440,182 @@ function ZoomHandler() {
   return null;
 }
 
+/* ── Create a canvas-rendered text texture (cached) ── */
+const textureCache = new Map<string, THREE.CanvasTexture>();
+
+function createLabelTexture(text: string, isCountry: boolean): THREE.CanvasTexture {
+  const key = `${text}_${isCountry ? "c" : "t"}`;
+  const cached = textureCache.get(key);
+  if (cached) return cached;
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
+  const fontSize = isCountry ? 40 : 32;
+  const fontWeight = isCountry ? "500" : "400";
+  const fontFamily = "system-ui, -apple-system, sans-serif";
+  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  const metrics = ctx.measureText(text);
+  const textWidth = metrics.width;
+  const padding = 16;
+
+  canvas.width = Math.ceil(textWidth + padding * 2);
+  canvas.height = Math.ceil(fontSize * 1.6 + padding);
+
+  // Re-set font after resizing canvas
+  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  // Text with subtle shadow for readability
+  ctx.shadowColor = "rgba(0,0,0,0.9)";
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 1;
+  ctx.fillStyle = isCountry ? "rgba(255,255,255,0.55)" : "rgba(190,210,255,0.45)";
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  textureCache.set(key, texture);
+  return texture;
+}
+
+/* ── Globe labels — country and city names rendered as sprites ── */
+function GlobeLabels() {
+  const groupRef = useRef<THREE.Group>(null);
+  const { camera } = useThree();
+  const spritesRef = useRef<{ sprite: THREE.Sprite; label: GeoLabel; baseScale: number }[]>([]);
+  const frameCounter = useRef(0);
+
+  // Pre-allocate reusable vectors
+  const _spriteWorldPos = useMemo(() => new THREE.Vector3(), []);
+  const _camPos = useMemo(() => new THREE.Vector3(), []);
+
+  // Create all sprites once
+  useEffect(() => {
+    if (!groupRef.current) return;
+    const group = groupRef.current;
+
+    // Clear existing
+    while (group.children.length > 0) {
+      group.remove(group.children[0]);
+    }
+    spritesRef.current = [];
+
+    const allLabels = [...COUNTRY_LABELS, ...CITY_LABELS];
+
+    for (const label of allLabels) {
+      const texture = createLabelTexture(label.name, label.type === "country");
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthWrite: false,
+        depthTest: true,
+        sizeAttenuation: true,
+        fog: false,
+      });
+
+      const sprite = new THREE.Sprite(material);
+      const [x, y, z] = latLngToVector3(label.lat, label.lng, GLOBE_RADIUS + 0.015);
+      sprite.position.set(x, y, z);
+
+      // Scale — kept tiny; sizeAttenuation is on so they shrink with distance
+      const aspect = texture.image.width / texture.image.height;
+      const baseScale = label.type === "country" ? 0.09 : 0.055;
+      sprite.scale.set(baseScale * aspect, baseScale, 1);
+
+      sprite.visible = false; // Start hidden, visibility controlled in useFrame
+      group.add(sprite);
+      spritesRef.current.push({ sprite, label, baseScale });
+    }
+
+    return () => {
+      // Cleanup
+      while (group.children.length > 0) {
+        group.remove(group.children[0]);
+      }
+      spritesRef.current = [];
+    };
+  }, []);
+
+  // Update visibility and opacity based on camera distance
+  useFrame(() => {
+    // Throttle to every 4 frames
+    frameCounter.current++;
+    if (frameCounter.current % 4 !== 0) return;
+
+    const camDist = camera.position.length();
+    _camPos.copy(camera.position);
+
+    for (const { sprite, label, baseScale } of spritesRef.current) {
+      // LOD thresholds based on camera distance from origin
+      // camDist ranges: 2.8 (closest) to 10 (farthest)
+      let shouldShow = false;
+      let fadeOpacity = 1.0;
+
+      if (label.type === "country") {
+        // Countries: visible when zoomed out, fade away when very close
+        if (label.rank === 1) {
+          shouldShow = camDist > 3.2;
+          if (camDist < 3.8) fadeOpacity = (camDist - 3.2) / 0.6; // fade in
+          if (camDist > 8) fadeOpacity = Math.max(0, 1 - (camDist - 8) / 1.5);
+        } else if (label.rank === 2) {
+          shouldShow = camDist > 3.5 && camDist < 7.5;
+          if (camDist < 4) fadeOpacity = (camDist - 3.5) / 0.5;
+          if (camDist > 7) fadeOpacity = (7.5 - camDist) / 0.5;
+        } else {
+          shouldShow = camDist > 3.5 && camDist < 6;
+          if (camDist < 4) fadeOpacity = (camDist - 3.5) / 0.5;
+          if (camDist > 5.5) fadeOpacity = (6 - camDist) / 0.5;
+        }
+      } else {
+        // Cities: only visible when zoomed in close
+        if (label.rank === 1) {
+          shouldShow = camDist < 4.8;
+          if (camDist > 4.2) fadeOpacity = (4.8 - camDist) / 0.6;
+          if (camDist < 3) fadeOpacity = Math.max(0.3, camDist / 3);
+        } else if (label.rank === 2) {
+          shouldShow = camDist < 4.0;
+          if (camDist > 3.5) fadeOpacity = (4.0 - camDist) / 0.5;
+        } else {
+          shouldShow = camDist < 3.5;
+          if (camDist > 3.2) fadeOpacity = (3.5 - camDist) / 0.3;
+        }
+      }
+
+      if (!shouldShow || fadeOpacity <= 0.02) {
+        sprite.visible = false;
+        continue;
+      }
+
+      // Check if label is on the visible side of the globe (facing camera)
+      _spriteWorldPos.setFromMatrixPosition(sprite.matrixWorld);
+      const dotProduct = _spriteWorldPos.dot(_camPos);
+      if (dotProduct < 0) {
+        sprite.visible = false;
+        continue;
+      }
+
+      sprite.visible = true;
+
+      // Keep scale constant — sizeAttenuation handles perspective
+      const mat = sprite.material as THREE.SpriteMaterial;
+      const tex = mat.map;
+      if (tex && tex.image) {
+        const aspect = (tex.image as HTMLCanvasElement).width / (tex.image as HTMLCanvasElement).height;
+        sprite.scale.set(baseScale * aspect, baseScale, 1);
+      }
+
+      // Apply smooth fade
+      mat.opacity = THREE.MathUtils.clamp(fadeOpacity, 0, 1);
+    }
+  });
+
+  return <group ref={groupRef} />;
+}
+
 /* ── Scene contents (wrapped in Suspense) ── */
 function SceneContents({ places }: { places: Place[] }) {
   const groupRef = useRef<THREE.Group>(null);
@@ -459,6 +637,7 @@ function SceneContents({ places }: { places: Place[] }) {
         <GlobeGrid />
         <Atmosphere />
         <StationMarkers places={places} />
+        <GlobeLabels />
       </group>
 
       <CameraController />
@@ -671,6 +850,8 @@ function ControlButtons() {
   const currentChannel = useRadioStore((s) => s.currentChannel);
   const stationLocked = useRadioStore((s) => s.stationLocked);
   const setStationLocked = useRadioStore((s) => s.setStationLocked);
+  const viewMode = useRadioStore((s) => s.viewMode);
+  const toggleViewMode = useRadioStore((s) => s.toggleViewMode);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [copied, setCopied] = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
@@ -822,6 +1003,32 @@ function ControlButtons() {
 
       {/* Locate me */}
       <LocateButton />
+
+      {/* Toggle globe/flat map */}
+      <button
+        onClick={toggleViewMode}
+        className="w-10 h-10 rounded-full bg-zinc-900/80 backdrop-blur-sm border border-zinc-700/50 flex items-center justify-center hover:bg-zinc-800 transition-colors group pointer-events-auto"
+        aria-label={viewMode === "globe" ? "Switch to flat map" : "Switch to globe"}
+        title={viewMode === "globe" ? "Switch to flat map" : "Switch to globe"}
+      >
+        {viewMode === "globe" ? (
+          /* Map icon — switch to flat */
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-300 group-hover:text-emerald-400 transition-colors">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+            <line x1="3" y1="15" x2="21" y2="15" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+            <line x1="15" y1="3" x2="15" y2="21" />
+          </svg>
+        ) : (
+          /* Globe icon — switch to globe */
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-300 group-hover:text-emerald-400 transition-colors">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+        )}
+      </button>
     </div>
   );
 }
@@ -829,11 +1036,22 @@ function ControlButtons() {
 /* ── Main Globe component ── */
 export default function Globe() {
   const places = useRadioStore((s) => s.places);
+  const viewMode = useRadioStore((s) => s.viewMode);
   const [mounted, setMounted] = useState(false);
+  const [FlatMapComponent, setFlatMapComponent] = useState<React.ComponentType | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Lazy-load FlatMap only when needed
+  useEffect(() => {
+    if (viewMode === "flat" && !FlatMapComponent) {
+      import("./FlatMap").then((mod) => {
+        setFlatMapComponent(() => mod.default);
+      });
+    }
+  }, [viewMode, FlatMapComponent]);
 
   if (!mounted) {
     return (
@@ -849,24 +1067,32 @@ export default function Globe() {
     <>
       <Crosshair />
       <ControlButtons />
-      <Canvas
-        camera={{ position: [0, 0.5, 5], fov: 45 }}
-        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
-        dpr={[1, 1.5]}
-        style={{ background: "#000000" }}
-      >
-        <React.Suspense
-          fallback={
-            <>
-              <ambientLight intensity={0.3} />
-              <directionalLight position={[5, 3, 5]} intensity={0.8} />
-              <EarthFallback />
-            </>
-          }
+      {viewMode === "globe" ? (
+        <Canvas
+          camera={{ position: [0, 0.5, 5], fov: 45 }}
+          gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+          dpr={[1, 1.5]}
+          style={{ background: "#000000" }}
         >
-          <SceneContents places={places} />
-        </React.Suspense>
-      </Canvas>
+          <React.Suspense
+            fallback={
+              <>
+                <ambientLight intensity={0.3} />
+                <directionalLight position={[5, 3, 5]} intensity={0.8} />
+                <EarthFallback />
+              </>
+            }
+          >
+            <SceneContents places={places} />
+          </React.Suspense>
+        </Canvas>
+      ) : (
+        FlatMapComponent ? <FlatMapComponent /> : (
+          <div className="w-full h-full flex items-center justify-center bg-black">
+            <div className="text-zinc-500 text-sm">Loading map...</div>
+          </div>
+        )
+      )}
     </>
   );
 }

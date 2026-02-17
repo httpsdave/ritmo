@@ -94,6 +94,11 @@ interface RadioState {
   stationLocked: boolean;
   setStationLocked: (v: boolean) => void;
 
+  // View mode
+  viewMode: "globe" | "flat";
+  setViewMode: (mode: "globe" | "flat") => void;
+  toggleViewMode: () => void;
+
   // Crosshair lock-on
   crosshairLocked: boolean;
   crosshairLoading: boolean;
@@ -171,6 +176,10 @@ export const useRadioStore = create<RadioState>((set, get) => ({
   crosshairPlaceId: null,
   setCrosshairLocked: (locked, placeId = null) => set({ crosshairLocked: locked, crosshairPlaceId: placeId }),
   setCrosshairLoading: (crosshairLoading) => set({ crosshairLoading }),
+
+  viewMode: "globe",
+  setViewMode: (viewMode) => set({ viewMode }),
+  toggleViewMode: () => set((s) => ({ viewMode: s.viewMode === "globe" ? "flat" : "globe" })),
 
   closeAllPanels: () => set({
     searchOpen: false,
